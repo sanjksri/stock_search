@@ -1,91 +1,92 @@
 import streamlit as st
 import pandas as pd
-import yfinance as yf
 
-# 1. Page Config
-st.set_page_config(page_title="Stock Screener Clone", layout="wide")
+# 1. Page Configuration
+st.set_page_config(page_title="My Stock Screener", layout="wide")
 
 # 2. Custom Styling
 st.markdown("""
     <style>
     .main { background-color: #f4f7f9; }
-    .stButton>button { background-color: #1d4ed8; color: white; border-radius: 5px; font-weight: bold; }
+    .stButton>button { 
+        background-color: #1d4ed8; 
+        color: white; 
+        border-radius: 5px; 
+        width: 100%; 
+        font-weight: bold;
+        height: 3em;
+    }
+    .stTextArea>div>div>textarea { 
+        font-family: 'Courier New', monospace; 
+        font-size: 16px; 
+        border: 2px solid #cbd5e1; 
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Data Fetching with Fallback
-@st.cache_data(ttl=3600)
-def get_stock_data():
-    tickers = ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ZOMATO.NS", 
-               "TATAMOTORS.NS", "ITC.NS", "TITAN.NS", "SBIN.NS", "ADANIENT.NS"]
-    
-    all_data = []
-    
-    # Try to fetch live data
+# 3. Load Data from your Google Sheet
+# We set ttl=600 so it refreshes from your sheet every 10 minutes
+@st.cache_data(ttl=600)
+def load_data_from_google():
+    url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTISJa8GdWE749e4hzlQHYu2EKkPfdvkVco2BGg97Nzb02IgPCyIISmQPv2nxqjQYkNpCEb8mf9maBt/pub?gid=829168257&single=true&output=csv"
     try:
-        with st.spinner('Attempting to fetch live market data...'):
-            for t in tickers:
-                stock = yf.Ticker(t)
-                # We use a small timeout or check if info is valid
-                info = stock.info
-                if info and 'currentPrice' in info:
-                    all_data.append({
-                        'Ticker': t.replace(".NS", ""),
-                        'Price': info.get('currentPrice'),
-                        'PE': info.get('trailingPE'),
-                        'Market_Cap': info.get('marketCap', 0) / 10000000,
-                        'ROCE': info.get('returnOnCapitalEmployed', 15.0),
-                        'Debt_to_Equity': info.get('debtToEquity', 0) / 100
-                    })
+        data = pd.read_csv(url)
+        # CLEANING: Remove any accidental spaces in column names
+        data.columns = data.columns.str.strip()
+        # CLEANING: Remove NSE: or BOM: prefixes from Tickers for a cleaner look
+        if 'Ticker' in data.columns:
+            data['Ticker'] = data['Ticker'].astype(str).str.replace('NSE:', '').str.replace('BOM:', '')
+        return data
     except Exception as e:
-        print(f"Live fetch failed: {e}")
+        st.error(f"Failed to connect to Google Sheets: {e}")
+        return None
 
-    # FALLBACK: If live data is empty (blocked by Yahoo), use high-quality Demo Data
-    if not all_data:
-        st.warning("⚠️ Live API is currently throttled. Loading cached/demo market data.")
-        demo_data = [
-            {'Ticker': 'RELIANCE', 'Price': 2950.0, 'PE': 28.5, 'Market_Cap': 1995000, 'ROCE': 12.5, 'Debt_to_Equity': 0.38},
-            {'Ticker': 'TCS', 'Price': 4120.0, 'PE': 31.2, 'Market_Cap': 1485000, 'ROCE': 58.7, 'Debt_to_Equity': 0.02},
-            {'Ticker': 'HDFCBANK', 'Price': 1510.0, 'PE': 17.8, 'Market_Cap': 1150000, 'ROCE': 16.5, 'Debt_to_Equity': 0.85},
-            {'Ticker': 'INFY', 'Price': 1480.0, 'PE': 24.5, 'Market_Cap': 615000, 'ROCE': 40.2, 'Debt_to_Equity': 0.06},
-            {'Ticker': 'ZOMATO', 'Price': 195.0, 'PE': 450.0, 'Market_Cap': 172000, 'ROCE': -1.2, 'Debt_to_Equity': 0.00},
-            {'Ticker': 'TATAMOTORS', 'Price': 955.0, 'PE': 14.8, 'Market_Cap': 345000, 'ROCE': 18.2, 'Debt_to_Equity': 1.15},
-            {'Ticker': 'ITC', 'Price': 430.0, 'PE': 26.1, 'Market_Cap': 540000, 'ROCE': 39.1, 'Debt_to_Equity': 0.00},
-            {'Ticker': 'TITAN', 'Price': 3200.0, 'PE': 82.1, 'Market_Cap': 285000, 'ROCE': 25.4, 'Debt_to_Equity': 0.22}
-        ]
-        return pd.DataFrame(demo_data)
-                
-    return pd.DataFrame(all_data)
+df = load_data_from_google()
 
-df = get_stock_data()
-
-# 4. Sidebar Header
-st.sidebar.title("🔍 Stock Screener")
-st.sidebar.write("### Variables Available:")
-st.sidebar.code("Price\nPE\nMarket_Cap\nROCE\nDebt_to_Equity")
+# 4. Sidebar info
+st.sidebar.title("📊 Screener Stats")
+if df is not None:
+    st.sidebar.write(f"**Total Stocks in DB:** {len(df)}")
+    st.sidebar.write("**Available Columns:**")
+    for col in df.columns:
+        st.sidebar.code(col)
 
 # 5. Main UI
-st.title("Search Query")
-st.write("Find stocks using logic like: `Market_Cap > 500000 and PE < 35`")
+st.title("Custom Stock Search")
+st.write("Enter your logic below. Use column names exactly as shown in the sidebar.")
 
-query_input = st.text_area("Query box", value="Market_Cap > 100000 and ROCE > 15", height=120)
+# Query Input
+default_query = "Market_Cap > 100000 and PE < 35"
+query_text = st.text_area("Search Query", value=default_query, height=120)
 
-if st.button("RUN THIS QUERY"):
-    try:
-        results = df.query(query_input)
-        st.subheader(f"Found {len(results)} results")
-        st.dataframe(
-            results.style.format({
-                'Market_Cap': "{:,.0f} Cr",
-                'Price': "₹{:,.2f}",
-                'ROCE': "{:.1f}%",
-                'PE': "{:.1f}"
-            }),
-            use_container_width=True
-        )
-    except Exception as e:
-        st.error(f"Query Error: {e}")
+if st.button("RUN QUERY"):
+    if df is not None:
+        try:
+            # The Magic Query Engine
+            results = df.query(query_text)
+            
+            st.subheader(f"Found {len(results)} results")
+            
+            # Display Table
+            st.dataframe(
+                results,
+                use_container_width=True,
+                column_config={
+                    "Price": st.column_config.NumberColumn(format="₹%.2f"),
+                    "Market_Cap": st.column_config.NumberColumn(format="%d Cr"),
+                    "ROCE": st.column_config.NumberColumn(format="%.1f%%"),
+                }
+            )
+            
+            # CSV Download for the filtered results
+            csv = results.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Results as CSV", csv, "results.csv", "text/csv")
+            
+        except Exception as e:
+            st.error(f"Logic Error: {e}")
+            st.info("💡 Hint: Check your column names and make sure you use 'and' / 'or' (case sensitive in some versions).")
 
-# 6. Full Data View
-with st.expander("View All Available Data"):
-    st.table(df)
+# 6. Data Preview
+with st.expander("View Full Database (Raw Data)"):
+    if df is not None:
+        st.write(df)
