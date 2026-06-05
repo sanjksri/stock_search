@@ -27,18 +27,29 @@ st.markdown("""
 # 3. Load Data from your Google Sheet
 # We set ttl=600 so it refreshes from your sheet every 10 minutes
 @st.cache_data(ttl=600)
+@st.cache_data(ttl=60) # Reduced to 1 minute for testing
 def load_data_from_google():
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTISJa8GdWE749e4hzlQHYu2EKkPfdvkVco2BGg97Nzb02IgPCyIISmQPv2nxqjQYkNpCEb8mf9maBt/pub?gid=829168257&single=true&output=csv"
     try:
         data = pd.read_csv(url)
-        # CLEANING: Remove any accidental spaces in column names
         data.columns = data.columns.str.strip()
-        # CLEANING: Remove NSE: or BOM: prefixes from Tickers for a cleaner look
+        
+        # List of columns that SHOULD be numbers
+        numeric_cols = ['Price', 'PE', 'Market_Cap', 'ROCE', 'Debt_to_Equity']
+        
+        for col in numeric_cols:
+            if col in data.columns:
+                # 1. Convert to numeric, turn errors (like #N/A) into NaN
+                data[col] = pd.to_numeric(data[col], errors='coerce')
+                # 2. Fill NaN (None) with 0 so the screener works
+                data[col] = data[col].fillna(0)
+        
         if 'Ticker' in data.columns:
             data['Ticker'] = data['Ticker'].astype(str).str.replace('NSE:', '').str.replace('BOM:', '')
+            
         return data
     except Exception as e:
-        st.error(f"Failed to connect to Google Sheets: {e}")
+        st.error(f"Error: {e}")
         return None
 
 df = load_data_from_google()
