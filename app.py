@@ -16,18 +16,19 @@ st.markdown("""
     """, unsafe_allow_html=True)
 # 2. Mock Data / API Integration
 @st.cache_data
-def get_stock_data():
-    # In a real app, you would fetch this from an API or Database
-    # Here we create a sample dataset for demonstration
-    data = {
-        'Ticker': ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ZOMATO', 'TATAMOTORS', 'ITC', 'TITAN'],
-        'Price': [2950, 4120, 1510, 1480, 195, 955, 430, 3200],
-        'Market_Cap': [1900000, 1400000, 1100000, 600000, 170000, 340000, 540000, 280000],
-        'PE': [28.5, 31.2, 17.8, 24.5, 480, 14.8, 26.1, 82.1],
-        'ROCE': [12.5, 58.7, 16.5, 40.2, -1.2, 18.2, 39.1, 25.4],
-        'Debt_to_Equity': [0.38, 0.02, 0.85, 0.06, 0.00, 1.15, 0.00, 0.22]
-    }
-    return pd.DataFrame(data)
+def get_live_data(tickers):
+    # Fetch data for a list of tickers
+    all_data = []
+    for t in tickers:
+        stock = yf.Ticker(t)
+        info = stock.info
+        all_data.append({
+            'Ticker': t,
+            'Price': info.get('currentPrice'),
+            'PE': info.get('trailingPE'),
+            'Market_Cap': info.get('marketCap')
+        })
+    return pd.DataFrame(all_data)
 
 df = get_stock_data()
 
