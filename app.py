@@ -6,14 +6,14 @@ import yfinance as yf
 st.set_page_config(page_title="Stock Screener Clone", layout="wide")
 
 # 1. Custom Styling (Screener.in look)
+# Change "unsafe_allow_now" to "unsafe_allow_html"
 st.markdown("""
     <style>
     .main { background-color: #f4f7f9; }
     .stButton>button { background-color: #1d4ed8; color: white; width: 100%; }
     .stTextArea>div>div>textarea { font-family: monospace; }
     </style>
-    """, unsafe_allow_now=True)
-
+    """, unsafe_allow_html=True)
 # 2. Mock Data / API Integration
 @st.cache_data
 def get_stock_data():
